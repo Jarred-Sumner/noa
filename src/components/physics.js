@@ -21,8 +21,8 @@ export default function (noa) {
       }
       noa.physics.removeBody(state.body);
     },
-    system: function () {},
-    renderSystem: function (dt, states) {
+//     system: function () {},
+    system: function (dt, states) {
       var tickPos = noa.positionInCurrentTick;
       var tickMS = tickPos * noa._tickRate;
 
