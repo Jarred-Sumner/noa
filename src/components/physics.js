@@ -105,7 +105,7 @@ export default function (noa) {
     order: 40,
     onRemove: function (entID, state) {
       if (noa.ents.hasPosition(state.__id)) {
-        var pdpat = noa.ents.getPositionData(state.__id);
+        var pdat = noa.ents.getPositionData(state.__id);
         setPositionFromPhysics(state, pdat);
         backtrackRenderPos(state, pdat, 0, false);
       }
@@ -140,24 +140,27 @@ export default function (noa) {
           positionData.position,
           state.body.velocity,
           backtrackAmt
-        ),
-          state.interpolatePosition &&
-            !state.body.autoStep &&
-            vec3.lerp(
-              newPosition,
-              positionData._renderPosition,
-              newPosition,
-              0.5
-            ),
-          noa.ents.cameraSmoothed(id) &&
-            state.body.autoStep &&
-            vec3.lerp(
-              newPosition,
-              positionData._renderPosition,
-              newPosition,
-              0.33
-            ),
-          vec3.copy(positionData._renderPosition, newPosition);
+        );
+
+        state.interpolatePosition &&
+          !state.body.autoStep &&
+          vec3.lerp(
+            newPosition,
+            positionData._renderPosition,
+            newPosition,
+            0.5
+          );
+
+        noa.ents.cameraSmoothed(id) &&
+          state.body.autoStep &&
+          vec3.lerp(
+            newPosition,
+            positionData._renderPosition,
+            newPosition,
+            0.33
+          );
+
+        vec3.copy(positionData._renderPosition, newPosition);
       }
     },
   };
