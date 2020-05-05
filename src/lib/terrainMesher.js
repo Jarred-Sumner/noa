@@ -247,7 +247,6 @@ function MeshBuilder() {
         var target = null;
         var targetID;
         for (var key in meshDataList) {
-            offset++;
             var mdat = meshDataList[key];
             if (!(mergeAll || mdat.mergeable)) continue;
 
