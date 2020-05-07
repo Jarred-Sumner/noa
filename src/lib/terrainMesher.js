@@ -66,8 +66,21 @@ function TerrainMesher() {
         );
 
         // builds the babylon mesh that will be added to the scene
-        var mesh;
-        var isEmpty = true;
+        var mesh
+        if (subMeshes.length) {
+            mesh = meshBuilder.build(chunk, subMeshes, ignoreMaterials)
+            profile_hook('terrain')
+        }
+
+        profile_hook('end')
+        return mesh || null
+    }
+}
+
+
+
+
+
 
         for (var _propname in subMeshes) {
             isEmpty = false;
@@ -125,18 +138,16 @@ function buildPaddedVoxelArray(chunk) {
         for (var j = 0; j < 3; j++) {
             loc[1] = j;
             for (var k = 0; k < 3; k++) {
-                loc[2] = k;
-
-                for (let locIndex = 0; locIndex < loc.length; locIndex++) {
-                    let coord = loc[locIndex];
-                    pos[locIndex] = posValues[coord];
-                    size[locIndex] = sizeValues[coord];
-                    tgtPos[locIndex] = tgtPosValues[coord];
+                loc[2] = k
+                for (var n = 0; n < 3; n++) {
+                    var coord = loc[n]
+                    pos[n] = posValues[coord]
+                    size[n] = sizeValues[coord]
+                    tgtPos[n] = tgtPosValues[coord]
                 }
-
-                var nab = chunk._neighbors.get(i - 1, j - 1, k - 1);
-                var nsrc = nab ? nab.voxels : null;
-                copyNdarrayContents(nsrc, tgt, pos, size, tgtPos);
+                var nab = chunk._neighbors.get(i - 1, j - 1, k - 1)
+                var nsrc = (nab) ? nab.voxels : null
+                copyNdarrayContents(nsrc, tgt, pos, size, tgtPos)
             }
         }
     }
@@ -190,13 +201,13 @@ function MeshBuilder() {
     var noa;
 
     // core
-    this.build = function (chunk, meshdata, ignoreMaterials) {
-        noa = chunk.noa;
+    this.build = function (chunk, meshDataList, ignoreMaterials) {
+        noa = chunk.noa
 
         // flag and merge submesh data that can share the default terrain material
-        var numMergeable = 0;
-        for (let key in meshdata) {
-            var mdat = meshdata[key];
+        var numMergeable = 0
+        for (var i = 0; i < meshDataList.length; i++) {
+            var mdat = meshDataList[i]
             if (ignoreMaterials) {
                 mdat.mergeable = true;
             } else {
@@ -205,17 +216,18 @@ function MeshBuilder() {
                 mdat.mergeable =
                     !url && matData.alpha === 1 && !matData.renderMat;
             }
-            if (mdat.mergeable) numMergeable++;
+            if (mdat.mergeable) numMergeable++
         }
-
-        if (numMergeable > 1) mergeSubmeshes(meshdata, false);
+        if (numMergeable > 1) mergeSubmeshes(meshDataList, false)
 
         // now merge everything, keeping track of vertices/indices/materials
-        var results = mergeSubmeshes(meshdata, true);
+        var results = mergeSubmeshes(meshDataList, true)
 
         // merge sole remaining submesh instance into a babylon mesh
-        var mdat = meshdata[results.mergedID];
-        var name = "chunk_" + chunk.id;
+        var merged = meshDataList[0]
+        var name = 'chunk_' + chunk.id
+        var mats = results.matIDs.map(id => getTerrainMaterial(id, ignoreMaterials))
+        var mesh = buildMeshFromSubmesh(merged, name, mats, results.vertices, results.indices)
 
         var mats = new Array(results.matIDs.length);
 
@@ -244,19 +256,18 @@ function MeshBuilder() {
         var indices = [];
         var matIDs = [];
 
-        var target = null;
-        var targetID;
-        for (var key in meshDataList) {
-            var mdat = meshDataList[key];
-            if (!(mergeAll || mdat.mergeable)) continue;
+        var target = null
+        for (var i = 0; i < meshDataList.length; ++i) {
+            var mdat = meshDataList[i]
+            if (!(mergeAll || mdat.mergeable)) continue
 
             vertices.push(mdat.positions.length);
             indices.push(mdat.indices.length);
             matIDs.push(mdat.id);
 
             if (!target) {
-                target = mdat;
-                targetID = key;
+                target = mdat
+
             } else {
                 var indexOffset = target.positions.length / 3;
                 // merge data in "mdat" onto "target"
@@ -275,13 +286,13 @@ function MeshBuilder() {
                 }
 
                 // get rid of entry that's been merged
-                mdat.dispose();
-                delete meshDataList[key];
+                meshDataList.splice(i, 1)
+                mdat.dispose()
+                i--
             }
         }
 
         return {
-            mergedID: targetID,
             vertices: vertices,
             indices: indices,
             matIDs: matIDs,
@@ -415,26 +426,24 @@ function MeshBuilder() {
  */
 
 function GreedyMesher() {
-    var ID_MASK = constants.ID_MASK;
+
+    var ID_MASK = constants.ID_MASK
+    var SOLID_BIT = constants.SOLID_BIT
+    var OPAQUE_BIT = constants.OPAQUE_BIT
     // var VAR_MASK = constants.VAR_MASK // NYI
-    var SOLID_BIT = constants.SOLID_BIT;
-    var OPAQUE_BIT = constants.OPAQUE_BIT;
-    var OBJECT_BIT = constants.OBJECT_BIT;
+    // var OBJECT_BIT = constants.OBJECT_BIT // not needed here
 
-    var maskCache = new Int16Array(16);
-    var aomaskCache = new Uint16Array(16);
 
-    this.mesh = function (
-        voxels,
-        getMaterial,
-        getColor,
-        doAO,
-        aoValues,
-        revAoVal,
-        edgesOnly
-    ) {
-        // return object, holder for Submeshes
-        var subMeshes = {};
+    var maskCache = new Int16Array(16)
+    var aomaskCache = new Uint16Array(16)
+
+
+
+
+    this.mesh = function (voxels, getMaterial, getColor, doAO, aoValues, revAoVal, edgesOnly) {
+
+        // hash of Submeshes, keyed by material ID
+        var subMeshes = {}
 
         // precalc how to apply AO packing in first masking function
         var skipReverseAO = doAO && revAoVal === aoValues[0];
@@ -492,9 +501,15 @@ function GreedyMesher() {
             }
         }
 
-        // done, return array of submeshes
-        return subMeshes;
-    };
+        // done, return hash of subMeshes as an array
+        return Object.keys(subMeshes).map(k => subMeshes[k])
+    }
+
+
+
+
+
+
 
     //      Greedy meshing inner loop one
     //
@@ -505,12 +520,13 @@ function GreedyMesher() {
         var mask = maskCache;
         var aomask = aomaskCache;
         // set up for quick array traversals
-        var n = 0;
-        var data = arrT.data;
-        var dbase = arrT.index(i - 1, 0, 0);
-        var istride = arrT.stride[0];
-        var jstride = arrT.stride[1];
-        var kstride = arrT.stride[2];
+        var n = 0
+        var materialDir = d * 2
+        var data = arrT.data
+        var dbase = arrT.index(i - 1, 0, 0)
+        var istride = arrT.stride[0]
+        var jstride = arrT.stride[1]
+        var kstride = arrT.stride[2]
 
         for (var k = 0; k < len; ++k) {
             var d0 = dbase;
@@ -519,50 +535,56 @@ function GreedyMesher() {
                 // mask[n] will represent the face needed between i-1,j,k and i,j,k
                 // for now, assume we never have two faces in both directions
 
+                // note that mesher zeroes out the mask as it goes, so there's 
+                // no need to zero it here when no face is needed
+
                 // IDs at i-1,j,k  and  i,j,k
                 var id0 = data[d0];
                 var id1 = data[d0 + istride];
 
-                var faceDir = getFaceDir(id0, id1);
+                // most common case: never a face between same voxel IDs, 
+                // so skip out early
+                if (id0 === id1) continue
+
+                var faceDir = getFaceDir(id0, id1, getMaterial, materialDir)
                 if (faceDir) {
                     // set regular mask value to material ID, sign indicating direction
-                    mask[n] =
-                        faceDir > 0
-                            ? getMaterial(id0 & ID_MASK, d * 2)
-                            : -getMaterial(id1 & ID_MASK, d * 2 + 1);
+                    mask[n] = (faceDir > 0) ?
+                        getMaterial(id0 & ID_MASK, materialDir) :
+                        -getMaterial(id1 & ID_MASK, materialDir + 1)
 
                     // if doing AO, precalculate AO level for each face into second mask
                     if (aoPackFcn) {
-                        // i values in direction face is/isn't pointing
-                        var ipos = faceDir > 0 ? i : i - 1;
-                        var ineg = faceDir > 0 ? i - 1 : i;
-
-                        // this got so big I rolled it into a function
-                        aomask[n] = aoPackFcn(arrT, ipos, ineg, j, k);
+                        // i values in direction face is/isn't pointing{
+                        aomask[n] = (faceDir > 0) ?
+                            aoPackFcn(arrT, i, i - 1, j, k) :
+                            aoPackFcn(arrT, i - 1, i, j, k)
                     }
-                } else {
-                    // unneeded, mesher zeroes out mask as it goes
-                    // mask[n] = 0
                 }
             }
         }
     }
 
-    function getFaceDir(id0, id1) {
-        // no face if both blocks are opaque, or if ids match
-        if (id0 === id1) return 0;
-        var op0 = id0 & OPAQUE_BIT;
-        var op1 = id1 & OPAQUE_BIT;
-        if (op0 && op1) return 0;
+
+
+    function getFaceDir(id0, id1, getMaterial, materialDir) {
+        // no face if both blocks are opaque
+        var op0 = id0 & OPAQUE_BIT
+        var op1 = id1 & OPAQUE_BIT
+        if (op0 && op1) return 0
         // if either block is opaque draw a face for it
-        if (op0) return 1;
-        if (op1) return -1;
-        // if one block is air or an object block draw face for the other
-        if (id1 === 0 || id1 & OBJECT_BIT) return 1;
-        if (id0 === 0 || id0 & OBJECT_BIT) return -1;
-        // only remaining case is two different non-opaque non-air blocks that are adjacent
-        // really we should draw both faces here; draw neither for now
-        return 0;
+        if (op0) return 1
+        if (op1) return -1
+        // can't tell from block IDs, so compare block materials of each face
+        var m0 = getMaterial(id0 & ID_MASK, materialDir)
+        var m1 = getMaterial(id1 & ID_MASK, materialDir + 1)
+        // if same material, draw no face. If one is missing, draw the other
+        if (m0 === m1) { return 0 }
+        else if (m0 === 0) { return -1 }
+        else if (m1 === 0) { return 1 }
+        // remaining case is two different non-opaque block materials
+        // facing each other. for now, draw neither..
+        return 0
     }
 
     //      Greedy meshing inner loop two
