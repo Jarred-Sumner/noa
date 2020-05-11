@@ -1,4 +1,3 @@
-var glvec3 = require("gl-vec3");
 import { removeUnorderedListItem } from "./util";
 
 import { Scene } from "@babylonjs/core/scene";
@@ -12,6 +11,8 @@ import { Vector3, Color3 } from "@babylonjs/core/Maths/math";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { OctreeSceneComponent } from "@babylonjs/core/Culling/Octrees/";
 import "@babylonjs/core/Meshes/meshBuilder";
+
+var glvec3 = require("gl-vec3");
 
 export default function (noa, opts, canvas) {
     return new Rendering(noa, opts, canvas);
